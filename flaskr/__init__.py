@@ -19,9 +19,16 @@ mysql = MySQL(app)
 def get_db_cursor():
     return mysql.connection.cursor(MySQLdb.cursors.DictCursor)
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+def db_query(query, commit = False):
+    try:
+        cursor = get_db_cursor()
+        cursor.execute(query)
+        if commit: mysql.connection.commit()
+        return cursor
+
+    except Exception as e:
+        print(f"Unable to execute query: '{query}'.\nError: {e}")
+        raise Exception(e)
 
 @app.before_request
 def load_logged_in_user():
@@ -31,9 +38,13 @@ def load_logged_in_user():
         g.user = None
 
     else:
-        cursor = get_db_cursor()
-        cursor.execute("SELECT * FROM User WHERE id = %s", (user_id,))
-        g.user = cursor.fetchone()
+        query = db_query(f'SELECT * FROM User WHERE id = {user_id}')
+        g.user = query.fetchone()
+        if g.user is None: flash("Unable to load logged in user")
+
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 @app.route('/register/', methods=('GET', 'POST'))
 def register():
@@ -49,24 +60,22 @@ def register():
             error = 'Password is required'
 
         if error is None:
-            try:
-                password = generate_password_hash(password)
+            password = generate_password_hash(password)
 
+            try:
                 # Add user to db
-                cursor = get_db_cursor()
-                cursor.execute('INSERT INTO User VALUES (NULL, "customer", %s, %s)', (email, password,))
-                mysql.connection.commit()
-                
+                query = db_query(f'INSERT INTO User VALUES (NULL, "customer", "{email}", "{password}")', True)
+            
                 # Login user to their new account
-                cursor.execute("SELECT * FROM User WHERE email = %s", (email,))
-                user = cursor.fetchone()
+                query = db_query(f'SELECT * FROM User WHERE email = "{email}"')
+                user = query.fetchone()
                 session.clear()
                 session['user_id'] = user['id']
                 flash("Welcome to Göstas!")
 
                 return redirect(url_for("index"))
-                
-            except cursor.IntegrityError:
+            
+            except:
                 error = f"User {email} is already registered!"
 
         flash(error)
@@ -79,9 +88,9 @@ def login():
         email = request.form['email']
         password = request.form['password']
 
-        cursor = get_db_cursor()
-        cursor.execute("SELECT * FROM User WHERE email = %s", (email,))
-        user = cursor.fetchone()
+        # Look for existing accounts
+        query = db_query(f'SELECT * FROM User WHERE email = "{email}"')
+        user = query.fetchone()
 
         error = None
         if user is None:
@@ -109,10 +118,47 @@ def addProduct():
     if request.method == 'POST':
         name = request.form['name']
         price = request.form['price']
-        media = request.files
-        t1 = media[0]
-        t2 = media[1]
         categories = request.form['category']
+        media = request.files.getlist('media')
+
+        # Get retailer id
+        try:
+            s_user = session['user_id']
+            query = db_query(f'SELECT id FROM Retailer WHERE account = "{s_user}"')
+            retailer = query.fetchone()
+            r_id = retailer['id']
+
+        except:
+            flash("No connection to retailer")
+            return render_template('retailer/add_product.html')
+
+        # Create product
+        try:
+            query = db_query(f'INSERT INTO Product VALUES (NULL, "{name}", {price}, {r_id}, "{categories}")', True)
+        
+        except:
+            flash("Failed to create product")
+            return render_template('retailer/add_product.html')
+
+        # Upload media & connect to product
+        try:
+            query = db_query(f'SELECT LAST_INSERT_ID()')
+            productId = query.fetchone()['LAST_INSERT_ID()']
+
+            cursor = get_db_cursor() # Doesn't utilize db_query() because of item.read()
+            for item in media:
+                try:
+                    cursor.execute('INSERT INTO Media VALUES (NULL, %s, %s)', (item.read(), productId,))
+                    mysql.connection.commit()
+                
+                except:
+                    flash("Image failed to upload")
+                    pass
+        
+        except:
+            flash("Failed to upload one or more media objects")
+
+        flash("Successfully added product!")
         return redirect(url_for('index'))
 
     return render_template('retailer/add_product.html')
