@@ -6,4 +6,9 @@
 
 {% block content %}
   <p>Hello World!</p>
+  <ul>
+  {% for product in g.products %}
+    <li>{{product['name']}}, {{product['price']}}kr, {{product['category']}}</li>
+  {% endfor %}
+</ul>
 {% endblock %}
