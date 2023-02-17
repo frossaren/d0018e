@@ -1,3 +1,4 @@
+from MySQLdb import IntegrityError
 from flask import Flask
 from flask_mysqldb import MySQL
 from flask import flash, g, redirect, render_template, request, session, url_for
@@ -28,7 +29,7 @@ def db_query(query, commit = False):
 
     except Exception as e:
         print(f"Unable to execute query: '{query}'.\nError: {e}")
-        raise Exception(e)
+        raise
 
 def create_order(userId):
     query = db_query(f'INSERT INTO `Order` (userId) VALUES ({userId})', True)
@@ -45,9 +46,15 @@ def load_logged_in_user():
         g.user = None
 
     else:
+        # Load user data
         query = db_query(f'SELECT * FROM User WHERE id = {user_id}')
         g.user = query.fetchone()
-        if g.user is None: flash("Unable to load logged in user")
+
+        # Load cart quantity info
+        query = db_query(f'SELECT id FROM `Order` WHERE userId = {user_id} AND isFinished = 0')
+        order_id = query.fetchone()['id']
+        query = db_query(f'SELECT COUNT(orderId) FROM CartItem WHERE orderId = {order_id}')
+        g.user['cartQty'] = query.fetchone()['COUNT(orderId)']
 
 @app.get('/')
 def index():
@@ -75,7 +82,7 @@ def register():
                 query = db_query(f'INSERT INTO User VALUES (NULL, "customer", "{email}", "{password}")', True)
             
                 # Login user to their new account
-                query = db_query(f'SELECT * FROM User WHERE email = "{email}"')
+                query = db_query(f'SELECT id FROM User WHERE email = "{email}"')
                 user = query.fetchone()
                 session.clear()
                 session['user_id'] = user['id']
@@ -97,7 +104,7 @@ def login():
         password = request.form['password']
 
         # Look for existing accounts
-        query = db_query(f'SELECT * FROM User WHERE email = "{email}"')
+        query = db_query(f'SELECT id, password FROM User WHERE email = "{email}"')
         user = query.fetchone()
 
         error = None
@@ -174,11 +181,11 @@ def addToCart():
 
     user_id = session['user_id']
 
-    query = db_query(f'SELECT * FROM Product WHERE id = {product_id}')
+    query = db_query(f'SELECT price FROM Product WHERE id = {product_id}')
     product = query.fetchone()
     price = product['price'] * quantity
 
-    query = db_query(f'SELECT * FROM `Order` WHERE userId = {user_id} AND isFinished = 0')
+    query = db_query(f'SELECT id FROM `Order` WHERE userId = {user_id} AND isFinished = 0')
     curr_order = query.fetchone()
 
     try:
@@ -187,8 +194,16 @@ def addToCart():
             curr_order = create_order(user_id)
 
         # Add to current order
+        try:
+            query = db_query(f'INSERT INTO CartItem VALUES ({curr_order["id"]}, {product_id}, {quantity})', True)
+        
+        # If cart already has product: increase amount instead
+        except IntegrityError:
+            query = db_query(f'SELECT numOrdered FROM CartItem WHERE orderId = {curr_order["id"]} AND productId = {product_id}')
+            quantity += query.fetchone()['numOrdered']
+            query = db_query(f'UPDATE CartItem SET numOrdered = {quantity} WHERE orderId = {curr_order["id"]} AND productId = {product_id}')
+
         totalPrice = curr_order['totalPrice'] + price
-        query = db_query(f'INSERT INTO CartItem VALUES ({curr_order["id"]}, {product_id}, {quantity})', True)
         query = db_query(f'UPDATE `Order` SET totalPrice = {totalPrice} WHERE id = {curr_order["id"]}', True)
 
     except:
