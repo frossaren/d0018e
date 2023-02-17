@@ -4,8 +4,8 @@ from flask import flash, g, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import MySQLdb.cursors
+import os
 
-# create and configure the app & database connection
 app = Flask(__name__)
 
 app.secret_key = 'dev'
@@ -30,6 +30,13 @@ def db_query(query, commit = False):
         print(f"Unable to execute query: '{query}'.\nError: {e}")
         raise Exception(e)
 
+def create_order(userId):
+    query = db_query(f'INSERT INTO `Order` (userId) VALUES ({userId})', True)
+    query = db_query(f'SELECT LAST_INSERT_ID()')
+    order_id = query.fetchone()['LAST_INSERT_ID()']
+    query = db_query(f'SELECT * FROM `Order` WHERE id = {order_id}')
+    return query.fetchone()
+
 @app.before_request
 def load_logged_in_user():
     user_id = session.get('user_id')
@@ -42,7 +49,7 @@ def load_logged_in_user():
         g.user = query.fetchone()
         if g.user is None: flash("Unable to load logged in user")
 
-@app.route('/')
+@app.get('/')
 def index():
     return render_template('index.html')
 
@@ -108,12 +115,12 @@ def login():
 
     return render_template('auth/login.html')
 
-@app.route('/logout')
+@app.get('/logout/')
 def logout():
     session.clear()    
     return redirect(url_for('index'))
 
-@app.route('/add_product', methods =('GET', 'POST'))
+@app.route('/add_product/', methods =('GET', 'POST'))
 def addProduct():
     if request.method == 'POST':
         name = request.form['name']
@@ -143,22 +150,49 @@ def addProduct():
         # Upload media & connect to product
         try:
             query = db_query(f'SELECT LAST_INSERT_ID()')
-            productId = query.fetchone()['LAST_INSERT_ID()']
+            product_id = query.fetchone()['LAST_INSERT_ID()']
 
-            cursor = get_db_cursor() # Doesn't utilize db_query() because of item.read()
-            for item in media:
-                try:
-                    cursor.execute('INSERT INTO Media VALUES (NULL, %s, %s)', (item.read(), productId,))
-                    mysql.connection.commit()
-                
-                except:
-                    flash("Image failed to upload")
-                    pass
+            for i in range(len(media)):
+                filetype = media[i].content_type[media[i].content_type.rindex("/")+1:]
+                filename = f"{product_id}_{i}.{filetype}"
+                media[i].save(os.path.join(app.root_path, "static", "media", filename))
         
-        except:
+        except Exception as e:
+            print(e)
             flash("Failed to upload one or more media objects")
 
         flash("Successfully added product!")
         return redirect(url_for('index'))
 
     return render_template('retailer/add_product.html')
+
+@app.post('/add_to_cart/')
+def addToCart():
+    product_id = request.form['id']
+    quantity = int(request.form['qty'])
+
+    user_id = session['user_id']
+
+    query = db_query(f'SELECT * FROM Product WHERE id = {product_id}')
+    product = query.fetchone()
+    price = product['price'] * quantity
+
+    query = db_query(f'SELECT * FROM `Order` WHERE userId = {user_id} AND isFinished = 0')
+    curr_order = query.fetchone()
+
+    try:
+        if curr_order is None:
+            # Create order
+            curr_order = create_order(user_id)
+
+        # Add to current order
+        totalPrice = curr_order['totalPrice'] + price
+        query = db_query(f'INSERT INTO CartItem VALUES ({curr_order["id"]}, {product_id}, {quantity})', True)
+        query = db_query(f'UPDATE `Order` SET totalPrice = {totalPrice} WHERE id = {curr_order["id"]}', True)
+
+    except:
+        flash("Something went wrong when adding item to cart")
+        return redirect(request.referrer)
+
+    flash("Added to cart!")
+    return redirect(request.referrer)
