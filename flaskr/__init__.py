@@ -51,6 +51,7 @@ def load_logged_in_user():
 
 @app.get('/')
 def index():
+    g.products = db_query("SELECT * FROM Product").fetchall()
     return render_template('index.html')
 
 @app.route('/register/', methods=('GET', 'POST'))
