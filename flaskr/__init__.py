@@ -51,10 +51,14 @@ def load_logged_in_user():
         g.user = query.fetchone()
 
         # Load cart quantity info
-        query = db_query(f'SELECT id FROM `Order` WHERE userId = {user_id} AND isFinished = 0')
-        order_id = query.fetchone()['id']
-        query = db_query(f'SELECT COUNT(orderId) FROM CartItem WHERE orderId = {order_id}')
-        g.user['cartQty'] = query.fetchone()['COUNT(orderId)']
+        try:
+            query = db_query(f'SELECT id FROM `Order` WHERE userId = {user_id} AND isFinished = 0')
+            order_id = query.fetchone()['id']
+            query = db_query(f'SELECT COUNT(orderId) FROM CartItem WHERE orderId = {order_id}')
+            g.user['cartQty'] = query.fetchone()['COUNT(orderId)']
+        
+        except:
+            g.user['cartQty'] = 0
 
 @app.get('/')
 def index():
