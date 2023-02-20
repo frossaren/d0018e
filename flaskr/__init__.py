@@ -59,6 +59,16 @@ def load_logged_in_user():
 @app.get('/')
 def index():
     g.products = db_query("SELECT * FROM Product").fetchall()
+    g.prodpicscount = []
+    for p in g.products:
+        i = 0
+        while(True):
+            filepath = "flaskr/static/media/"+str(p['id'])+"_"+ str(i) +".jpg"
+            if(os.path.exists(filepath)):
+                i = i + 1
+            else:
+                g.prodpicscount.append(i)
+                break
     return render_template('index.html')
 
 @app.route('/register/', methods=('GET', 'POST'))
