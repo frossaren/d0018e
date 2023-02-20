@@ -12,8 +12,9 @@
     <button type="submit">Buy!</button>
   </form>
   <ul>
-  {% for product in g.products %}
-    <li>{{product['name']}}, {{product['price']}}kr, {{product['category']}}</li>
+
+  {% for j in range(25) %}
+    <li>{{g.products[j]['name']}}, {{g.products[j]['price']}}kr, {{g.products[j]['category']}}, {% for i in range(g.prodpicscount[j]) %} <img src="static/media/{{g.products[j]['id']}}_{{i}}.jpg"/> {% endfor %}</li>
   {% endfor %}
 </ul>
 {% endblock %}
