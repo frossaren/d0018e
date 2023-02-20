@@ -152,7 +152,7 @@ def add_product():
 
         # Get retailer id
         try:
-            s_user = session['user_id']
+            s_user = session.get('user_id')
             query = db_query(f'SELECT id FROM Retailer WHERE account = "{s_user}"')
             retailer = query.fetchone()
             r_id = retailer['id']
@@ -223,7 +223,9 @@ def add_to_cart():
     product_id = request.form['id']
     quantity = int(request.form['qty'])
 
-    user_id = session['user_id']
+    user_id = session.get('user_id')
+    if user_id is None:
+        return redirect(url_for('login'))
 
     query = db_query(f'SELECT price FROM Product WHERE id = {product_id}')
     product = query.fetchone()
@@ -259,7 +261,7 @@ def add_to_cart():
 
 @app.post('/checkout/')
 def checkout():
-    user_id = session['user_id']
+    user_id = session.get('user_id')
     query = db_query(f'SELECT id FROM `Order` WHERE userId = {user_id} AND isFinished = 0')
     curr_order = query.fetchone()
     if curr_order is None:
