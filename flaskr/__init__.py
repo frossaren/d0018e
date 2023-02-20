@@ -133,7 +133,7 @@ def logout():
     return redirect(url_for('index'))
 
 @app.route('/add_product/', methods =('GET', 'POST'))
-def addProduct():
+def add_product():
     if request.method == 'POST':
         name = request.form['name']
         price = request.form['price']
@@ -178,8 +178,38 @@ def addProduct():
 
     return render_template('retailer/add_product.html')
 
+# Buy button, delete from cart?
+@app.route('/cart/', methods =('GET', 'POST'))
+def view_cart():
+    user_id = session.get('user_id')
+    query = db_query(f'SELECT id, totalPrice FROM `Order` WHERE userId = {user_id} AND isFinished = 0')
+    order_info = query.fetchone()
+
+    if order_info is None:
+        cart = {
+            'id': "",
+            'totalPrice': 0,
+            'rows': ""
+        }
+    
+    else:
+        queryString = ("SELECT Product.name, Product.price, CartItem.numOrdered "
+                       "FROM CartItem "
+                       "INNER JOIN Product ON CartItem.productId = Product.id "
+                      f'WHERE CartItem.orderId = {order_info["id"]}')
+        query = db_query(queryString)
+        order_rows = query.fetchall()
+
+        cart = {
+            'id': order_info['id'],
+            'totalPrice': order_info['totalPrice'],
+            'rows': order_rows
+        }
+
+    return render_template('cart/view_cart.html', cart = cart)
+
 @app.post('/add_to_cart/')
-def addToCart():
+def add_to_cart():
     product_id = request.form['id']
     quantity = int(request.form['qty'])
 
@@ -189,7 +219,7 @@ def addToCart():
     product = query.fetchone()
     price = product['price'] * quantity
 
-    query = db_query(f'SELECT id FROM `Order` WHERE userId = {user_id} AND isFinished = 0')
+    query = db_query(f'SELECT id, totalPrice FROM `Order` WHERE userId = {user_id} AND isFinished = 0')
     curr_order = query.fetchone()
 
     try:
@@ -205,7 +235,7 @@ def addToCart():
         except IntegrityError:
             query = db_query(f'SELECT numOrdered FROM CartItem WHERE orderId = {curr_order["id"]} AND productId = {product_id}')
             quantity += query.fetchone()['numOrdered']
-            query = db_query(f'UPDATE CartItem SET numOrdered = {quantity} WHERE orderId = {curr_order["id"]} AND productId = {product_id}')
+            query = db_query(f'UPDATE CartItem SET numOrdered = {quantity} WHERE orderId = {curr_order["id"]} AND productId = {product_id}', True)
 
         totalPrice = curr_order['totalPrice'] + price
         query = db_query(f'UPDATE `Order` SET totalPrice = {totalPrice} WHERE id = {curr_order["id"]}', True)
@@ -216,3 +246,16 @@ def addToCart():
 
     flash("Added to cart!")
     return redirect(request.referrer)
+
+@app.post('/checkout/')
+def checkout():
+    user_id = session['user_id']
+    query = db_query(f'SELECT id FROM `Order` WHERE userId = {user_id} AND isFinished = 0')
+    curr_order = query.fetchone()
+    if curr_order is None:
+        flash("Nothing in cart")
+        return redirect(url_for('index'))
+
+    query = db_query(f'UPDATE `Order` SET isFinished = 1 WHERE id = {curr_order["id"]}', True)
+    
+    return redirect(url_for('index'))
