@@ -38,6 +38,12 @@ def create_order(userId):
     query = db_query(f'SELECT * FROM `Order` WHERE id = {order_id}')
     return query.fetchone()
 
+def update_order(order_id, product_id, qty, subtraction = False):
+    query = db_query(f'SELECT price FROM Product WHERE id = {product_id}')
+    price = query.fetchone()['price']
+    if subtraction: price *= -1
+    query = db_query(f'UPDATE `Order` SET totalPrice = totalPrice + {price * qty} WHERE id = {order_id}', True)
+
 @app.before_request
 def load_logged_in_user():
     user_id = session.get('user_id')
@@ -203,7 +209,7 @@ def view_cart():
         }
     
     else:
-        queryString = ("SELECT Product.name, Product.price, CartItem.numOrdered "
+        queryString = ("SELECT Product.id, Product.name, Product.price, CartItem.numOrdered "
                        "FROM CartItem "
                        "INNER JOIN Product ON CartItem.productId = Product.id "
                       f'WHERE CartItem.orderId = {order_info["id"]}')
@@ -249,8 +255,9 @@ def add_to_cart():
             quantity += query.fetchone()['numOrdered']
             query = db_query(f'UPDATE CartItem SET numOrdered = {quantity} WHERE orderId = {curr_order["id"]} AND productId = {product_id}', True)
 
-        totalPrice = curr_order['totalPrice'] + price
-        query = db_query(f'UPDATE `Order` SET totalPrice = {totalPrice} WHERE id = {curr_order["id"]}', True)
+        update_order(curr_order["id"], product_id, quantity)
+        #totalPrice = curr_order['totalPrice'] + price
+        #query = db_query(f'UPDATE `Order` SET totalPrice = {totalPrice} WHERE id = {curr_order["id"]}', True)
 
     except:
         flash("Something went wrong when adding item to cart")
@@ -258,6 +265,28 @@ def add_to_cart():
 
     flash("Added to cart!")
     return redirect(request.referrer)
+
+@app.post('/remove_from_cart/')
+def remove_from_cart():
+    product_id = request.form['id']
+    user_id = session.get('user_id')
+
+    if user_id is None:
+        flash("Something went wrong retrieving account information")
+        return redirect(request.referrer)
+
+    query = db_query(f'SELECT id FROM `Order` WHERE userId = {user_id} AND isFinished = 0')
+    curr_order = query.fetchone()
+
+    if curr_order is None:
+        flash("Nothing to remove")
+        return redirect(request.refferer)
+
+    query = db_query(f'SELECT numOrdered FROM CartItem WHERE orderId = {curr_order["id"]}')
+    update_order(curr_order['id'], product_id, query.fetchone()['numOrdered'], True)
+    query = db_query(f'DELETE FROM CartItem WHERE orderId = {curr_order["id"]} AND productId = {product_id}', True)
+    
+    return redirect(url_for('view_cart'))
 
 @app.post('/checkout/')
 def checkout():
@@ -268,6 +297,10 @@ def checkout():
         flash("Nothing in cart")
         return redirect(url_for('index'))
 
-    query = db_query(f'UPDATE `Order` SET isFinished = 1 WHERE id = {curr_order["id"]}', True)
+    try:
+        query = db_query(f'UPDATE `Order` SET isFinished = 1 WHERE id = {curr_order["id"]}', True)
     
+    except:
+        flash("Something went wrong when updating order status")
+
     return redirect(url_for('index'))

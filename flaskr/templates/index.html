@@ -5,9 +5,8 @@
 {% endblock %}
 
 {% block content %}
-  <p>Hello World!</p>
   <form action="/add_to_cart/" method="post">
-    <input type="hidden" name="id" value="{{4}}">
+    <input type="hidden" name="id" value="{{10}}">
     <input type="number" name="qty" value="1" min="1" required>
     <button type="submit">Buy!</button>
   </form>
