@@ -10,7 +10,7 @@
   <ul>
 
   {% for j in range(25) %}
-    <li>{{g.products[j]['name']}}, {{g.products[j]['price']}}kr, {{g.products[j]['category']}}, {% for i in range(g.prodpicscount[j]) %} <img src="static/media/{{g.products[j]['id']}}_{{i}}.jpg"/> {% endfor %} <form action="/add_to_cart/" method="post">
+    <li>{{g.products[j]['name']}}, {{g.products[j]['price']}}kr, {{g.products[j]['category']}}, {% for i in range(g.prodpicscount[j]) %} <img src="static/media/{{g.products[j]['id']}}_{{i}}.jpeg"/> {% endfor %} <form action="/add_to_cart/" method="post">
     <input type="hidden" name="id" value="{{g.products[j]['id']}}">
     <input type="number" name="qty" value="1" min="1" required>
     <button type="submit">Buy!</button>
