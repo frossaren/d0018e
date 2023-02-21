@@ -20,7 +20,8 @@
                 <td style="text-align: center;">
                     <form action="/remove_from_cart/" method="post">
                         <input type="hidden" name="id" value="{{ row['id'] }}">
-                        <button type="submit">Remove</button>
+                        <input type="hidden" name="qty" value="{{ row['numOrdered'] }}">
+                        <button type="submit">Remove All</button>
                     </form>
                 </td>
             </tr>

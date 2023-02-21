@@ -38,11 +38,49 @@ def create_order(userId):
     query = db_query(f'SELECT * FROM `Order` WHERE id = {order_id}')
     return query.fetchone()
 
-def update_order(order_id, product_id, qty, subtraction = False):
+def _update_order_price(order_id, product_id, qty):
     query = db_query(f'SELECT price FROM Product WHERE id = {product_id}')
     price = query.fetchone()['price']
-    if subtraction: price *= -1
-    query = db_query(f'UPDATE `Order` SET totalPrice = totalPrice + {price * qty} WHERE id = {order_id}', True)
+    try:
+        query = db_query(f'UPDATE `Order` SET totalPrice = totalPrice + {price * qty} WHERE id = {order_id}', True)
+
+    except:
+        flash("Couldn't update order price")
+
+def update_order(order_id, product_id, qty):
+    query = db_query(f'SELECT numOrdered FROM CartItem WHERE orderId = {order_id} AND productId = {product_id}')
+    result = query.fetchone()
+    # If order row for product doesn't exist create new, else calc new quantity
+    if result is None:
+        if qty <= 0:
+            flash("Can't add less than 1 to order!")
+            return
+
+        try:
+            db_query(f'INSERT INTO CartItem VALUES ({order_id}, {product_id}, {qty})', True)
+
+        except:
+            flash("Order row creation failed")
+            return
+
+    else:
+        qty += result["numOrdered"]
+
+    # Change amount or delete if new amount <= 0
+    if qty > 0:
+        queryStr = f'UPDATE CartItem SET numOrdered = {qty} WHERE orderId = {order_id} AND productId = {product_id}'
+    
+    else:
+        queryStr = f'DELETE FROM CartItem WHERE orderId = {order_id} AND productId = {product_id}'
+        qty = result["numOrdered"] * -1 # So that the right amount is subtracted from the order total
+
+    try:
+        query = db_query(queryStr, True)
+        # Update order price
+        _update_order_price(order_id, product_id, qty)
+
+    except:
+        flash("Unable to modify order rows")
 
 @app.before_request
 def load_logged_in_user():
@@ -195,7 +233,6 @@ def add_product():
 
     return render_template('retailer/add_product.html')
 
-# Buy button, delete from cart?
 @app.route('/cart/', methods =('GET', 'POST'))
 def view_cart():
     user_id = session.get('user_id')
@@ -227,53 +264,34 @@ def view_cart():
 
 @app.post('/add_to_cart/')
 def add_to_cart():
-    product_id = request.form['id']
-    quantity = int(request.form['qty'])
-
     user_id = session.get('user_id')
+    product_id = request.form['id']
+    qty = int(request.form['qty'])
+
     if user_id is None:
         return redirect(url_for('login'))
 
-    query = db_query(f'SELECT price FROM Product WHERE id = {product_id}')
-    product = query.fetchone()
-    price = product['price'] * quantity
-
-    query = db_query(f'SELECT id, totalPrice FROM `Order` WHERE userId = {user_id} AND isFinished = 0')
-    curr_order = query.fetchone()
-
-    try:
-        if curr_order is None:
-            # Create order
-            curr_order = create_order(user_id)
-
-        # Add to current order
-        try:
-            query = db_query(f'INSERT INTO CartItem VALUES ({curr_order["id"]}, {product_id}, {quantity})', True)
-        
-        # If cart already has product: increase amount instead
-        except IntegrityError:
-            query = db_query(f'SELECT numOrdered FROM CartItem WHERE orderId = {curr_order["id"]} AND productId = {product_id}')
-            quantity += query.fetchone()['numOrdered']
-            query = db_query(f'UPDATE CartItem SET numOrdered = {quantity} WHERE orderId = {curr_order["id"]} AND productId = {product_id}', True)
-
-        update_order(curr_order["id"], product_id, quantity)
-        #totalPrice = curr_order['totalPrice'] + price
-        #query = db_query(f'UPDATE `Order` SET totalPrice = {totalPrice} WHERE id = {curr_order["id"]}', True)
-
-    except:
-        flash("Something went wrong when adding item to cart")
+    elif product_id is None or qty < 1:
         return redirect(request.referrer)
 
+    query = db_query(f'SELECT id FROM `Order` WHERE userId = {user_id} AND isFinished = 0')
+    curr_order = query.fetchone()
+
+    if curr_order is None:
+        curr_order = create_order(user_id)
+    
+    update_order(curr_order["id"], product_id, qty)
     flash("Added to cart!")
+
     return redirect(request.referrer)
 
 @app.post('/remove_from_cart/')
 def remove_from_cart():
-    product_id = request.form['id']
     user_id = session.get('user_id')
+    product_id = request.form['id']
+    qty = int(request.form['qty']) * -1
 
-    if user_id is None:
-        flash("Something went wrong retrieving account information")
+    if user_id is None or product_id is None or qty > -1:
         return redirect(request.referrer)
 
     query = db_query(f'SELECT id FROM `Order` WHERE userId = {user_id} AND isFinished = 0')
@@ -283,10 +301,9 @@ def remove_from_cart():
         flash("Nothing to remove")
         return redirect(request.refferer)
 
-    query = db_query(f'SELECT numOrdered FROM CartItem WHERE orderId = {curr_order["id"]}')
-    update_order(curr_order['id'], product_id, query.fetchone()['numOrdered'], True)
-    query = db_query(f'DELETE FROM CartItem WHERE orderId = {curr_order["id"]} AND productId = {product_id}', True)
-    
+    update_order(curr_order["id"], product_id, qty)
+    flash("Item successfully removed!")
+
     return redirect(url_for('view_cart'))
 
 @app.post('/checkout/')
