@@ -73,7 +73,7 @@ def index():
     for p in g.products:
         i = 0
         while(True):
-            filepath = "flaskr/static/media/"+str(p['id'])+"_"+ str(i) +".jpg"
+            filepath = "flaskr/static/media/"+str(p['id'])+"_"+ str(i) +".jpeg"
             if(os.path.exists(filepath)):
                 i = i + 1
             else:
