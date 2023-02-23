@@ -69,6 +69,7 @@ def update_order(order_id, product_id, qty):
     # Change amount or delete if new amount <= 0
     if qty > 0:
         queryStr = f'UPDATE CartItem SET numOrdered = {qty} WHERE orderId = {order_id} AND productId = {product_id}'
+        qty = qty - result['numOrdered']
     
     else:
         queryStr = f'DELETE FROM CartItem WHERE orderId = {order_id} AND productId = {product_id}'
