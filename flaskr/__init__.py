@@ -83,6 +83,16 @@ def update_order(order_id, product_id, qty):
     except:
         flash("Unable to modify order rows")
 
+def get_media(product_id):
+    mediaDir = os.listdir(os.path.join(app.root_path, "static", "media"))
+    urls = []
+    
+    for item in mediaDir:
+        if int(item.split("_", 1)[0]) == product_id:
+            urls.append(item)
+
+    return urls
+
 @app.before_request
 def load_logged_in_user():
     user_id = session.get('user_id')
@@ -233,6 +243,55 @@ def add_product():
         return redirect(url_for('index'))
 
     return render_template('retailer/add_product.html')
+
+# TODO: Solve user_id = None crashing site
+@app.get('/manage_products/')
+def manage_products():
+    user_id = session.get('user_id')
+    try:
+        query = db_query(f'SELECT id FROM Retailer WHERE account = {user_id}')
+        r_id = query.fetchone()['id']
+    
+    except:
+        flash("No retailer account was found")
+        return redirect(request.referrer)
+
+    query = db_query(f'SELECT * FROM Product WHERE retailerId = {r_id}')
+    products = query.fetchall()
+
+    for product in products:
+        product['media'] = get_media(product['id'])
+
+    return render_template('retailer/manage_products.html', products=products)
+
+@app.post('/update_product/')
+def update_product():
+    product_id = request.form['id']
+    name = request.form['name']
+    price = request.form['price']
+    category = request.form['category']
+    #media = request.files.getlist('media') # Implement image upload/removal for future versions
+
+    try:
+        db_query(f'UPDATE Product SET name = "{name}", price = {price}, category = "{category}" WHERE id = {product_id}', True)
+
+    except:
+        flash("Failed to update product")
+
+    return redirect(request.referrer)
+
+@app.post('/delete_product/')
+def delete_product():
+    product_id = request.form['id']
+    
+    try:
+        pass
+        # Disable product in someway, can't delete for order history purposes
+    
+    except:
+        flash("Failed to delete product")
+
+    return redirect(request.referrer)
 
 @app.route('/cart/', methods =('GET', 'POST'))
 def view_cart():

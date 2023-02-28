@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}Manage products{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+    <p>* - Required fields.</p>
+    {% for product in products %}
+        <form method="post" enctype="multipart/form-data">
+            <div style="display: grid; grid-template-columns: 1fr 1fr;">
+                <div>
+                    <input type="hidden" name="id" id="id" value="{{ product['id'] }}" required>
+                    <label for="name">Name*</label>
+                    <input type="text" name="name" id="name" value="{{ product['name'] }}" required>
+                    <br />
+                    <label for="price">Price* </label>
+                    <input type="number" name="price" id="price" step="0.01" min="0" value="{{ product['price'] }}" required>
+                    <br />
+                    <label for="category">Category</label>
+                    <input type="text" name="category" id="category" value="{{ product['category'] }}">
+                    <br />
+                    <br />
+                    <button type="submit" formaction="/update_product/">Save</button>
+                    <!-- <button type="submit" formaction="/delete_product/">Delete</button> -->
+                </div>
+                <div>
+                    {% if product['media'] is not none %}
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr">
+                            {% for media_url in product['media'] %}
+                            <img style="width: calc(50vw / 6);" src="/static/media/{{ media_url }}">
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    <!-- <br /> -->
+                    <!-- <label for="media">Upload additional media</label> -->
+                    <!-- <input type="file" name="media" id="media" accept="image/*" multiple> -->
+                </div>
+            </div>
+        </form>
+        <hr>
+    {% endfor %}
+    <a href="{{ url_for('index') }}">Return</a>
+{% endblock %}
