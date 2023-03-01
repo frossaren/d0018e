@@ -38,50 +38,57 @@ def create_order(userId):
     query = db_query(f'SELECT * FROM `Order` WHERE id = {order_id}')
     return query.fetchone()
 
-def _update_order_price(order_id, product_id, qty):
-    query = db_query(f'SELECT price FROM Product WHERE id = {product_id}')
-    price = query.fetchone()['price']
+def update_order_price(order_id):
+    query = db_query(f'SELECT price, numOrdered FROM CartItem WHERE orderId = {order_id}')
+    order_rows = query.fetchall()
+    order_price = 0
     try:
-        query = db_query(f'UPDATE `Order` SET totalPrice = totalPrice + {price * qty} WHERE id = {order_id}', True)
+        for row in order_rows:
+            order_price += (row["price"] * row["numOrdered"])
+
+        query = db_query(f'UPDATE `Order` SET totalPrice = {order_price} WHERE id = {order_id}', True)
 
     except:
         flash("Couldn't update order price")
 
-def update_order(order_id, product_id, qty):
-    query = db_query(f'SELECT numOrdered FROM CartItem WHERE orderId = {order_id} AND productId = {product_id}')
-    result = query.fetchone()
-    # If order row for product doesn't exist create new, else calc new quantity
-    if result is None:
+def update_order(order_id, product_id, qty, price = None):
+    # Fetch current product price if no price is given
+    if price is None:
+        query = db_query(f'SELECT price FROM Product WHERE id = {product_id}')
+        price = query.fetchone()["price"]
+
+    # Search for matches against primary keys
+    query = db_query(f'SELECT numOrdered, price FROM CartItem WHERE orderId = {order_id} AND productId = {product_id} AND price = {price}')
+    existing = query.fetchone()
+
+    # If order row for product with current price doesn't exist create new, else update/remove row
+    if existing is None:
         if qty <= 0:
             flash("Can't add less than 1 to order!")
             return
 
         try:
-            db_query(f'INSERT INTO CartItem VALUES ({order_id}, {product_id}, {qty})', True)
+            db_query(f'INSERT INTO CartItem VALUES ({order_id}, {product_id}, {qty}, {price})', True)
 
         except:
             flash("Order row creation failed")
             return
 
     else:
-        qty += result["numOrdered"]
+        qty += existing["numOrdered"]
+        if qty > 0:
+            queryStr = f'UPDATE CartItem SET numOrdered = {qty} WHERE orderId = {order_id} AND productId = {product_id} and price = {price}'
+        
+        else:
+            queryStr = f'DELETE FROM CartItem WHERE orderId = {order_id} AND productId = {product_id} and price = {price}'
 
-    # Change amount or delete if new amount <= 0
-    if qty > 0:
-        queryStr = f'UPDATE CartItem SET numOrdered = {qty} WHERE orderId = {order_id} AND productId = {product_id}'
-        qty = qty - result['numOrdered']
-    
-    else:
-        queryStr = f'DELETE FROM CartItem WHERE orderId = {order_id} AND productId = {product_id}'
-        qty = result["numOrdered"] * -1 # So that the right amount is subtracted from the order total
+        try:
+            query = db_query(queryStr, True)
 
-    try:
-        query = db_query(queryStr, True)
-        # Update order price
-        _update_order_price(order_id, product_id, qty)
+        except:
+            flash("Unable to modify order rows")
 
-    except:
-        flash("Unable to modify order rows")
+    update_order_price(order_id)
 
 def get_media(product_id):
     mediaDir = os.listdir(os.path.join(app.root_path, "static", "media"))
@@ -307,7 +314,7 @@ def view_cart():
         }
     
     else:
-        queryString = ("SELECT Product.id, Product.name, Product.price, CartItem.numOrdered "
+        queryString = ("SELECT Product.id, Product.name, CartItem.price, CartItem.numOrdered "
                        "FROM CartItem "
                        "INNER JOIN Product ON CartItem.productId = Product.id "
                       f'WHERE CartItem.orderId = {order_info["id"]}')
@@ -327,6 +334,7 @@ def add_to_cart():
     user_id = session.get('user_id')
     product_id = request.form['id']
     qty = int(request.form['qty'])
+    price = request.form['price']
 
     if user_id is None:
         return redirect(url_for('login'))
@@ -340,7 +348,7 @@ def add_to_cart():
     if curr_order is None:
         curr_order = create_order(user_id)
     
-    update_order(curr_order["id"], product_id, qty)
+    update_order(curr_order["id"], product_id, qty, price)
     flash("Added to cart!")
 
     return redirect(request.referrer)
@@ -350,6 +358,7 @@ def remove_from_cart():
     user_id = session.get('user_id')
     product_id = request.form['id']
     qty = int(request.form['qty']) * -1
+    price = request.form['price']
 
     if user_id is None or product_id is None or qty > -1:
         return redirect(request.referrer)
@@ -361,7 +370,7 @@ def remove_from_cart():
         flash("Nothing to remove")
         return redirect(request.refferer)
 
-    update_order(curr_order["id"], product_id, qty)
+    update_order(curr_order["id"], product_id, qty, price)
     flash("Item successfully removed!")
 
     return redirect(url_for('view_cart'))

@@ -21,6 +21,7 @@
                     <form action="/remove_from_cart/" method="post">
                         <input type="hidden" name="id" value="{{ row['id'] }}">
                         <input type="hidden" name="qty" value="1">
+                        <input type="hidden" name="price" value="{{ row['price'] }}">
                         <button type="submit">-</button>
                     </form>
                 </td>
@@ -28,6 +29,7 @@
                     <form action="/remove_from_cart/" method="post">
                         <input type="hidden" name="id" value="{{ row['id'] }}">
                         <input type="hidden" name="qty" value="{{ row['numOrdered'] }}">
+                        <input type="hidden" name="price" value="{{ row['price'] }}">
                         <button type="submit">Remove All</button>
                     </form>
                 </td>
@@ -35,6 +37,7 @@
                     <form action="/add_to_cart/" method="post">
                         <input type="hidden" name="id" value="{{ row['id'] }}">
                         <input type="hidden" name="qty" value="1">
+                        <input type="hidden" name="price" value="{{ row['price'] }}">
                         <button type="submit">+</button>
                     </form>
                 </td>
