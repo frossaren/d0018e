@@ -213,20 +213,14 @@ def add_product():
         categories = request.form['category']
         media = request.files.getlist('media')
 
-        # Get retailer id
-        try:
-            s_user = session.get('user_id')
-            query = db_query(f'SELECT id FROM Retailer WHERE account = "{s_user}"')
-            retailer = query.fetchone()
-            r_id = retailer['id']
-
-        except:
-            flash("No connection to retailer")
+        # Permission check
+        if g.user['role'] != "retailer":
+            flash("Not a retailer")
             return render_template('retailer/add_product.html')
 
         # Create product
         try:
-            query = db_query(f'INSERT INTO Product VALUES (NULL, "{name}", {price}, {r_id}, "{categories}")', True)
+            query = db_query(f'INSERT INTO Product VALUES (NULL, "{name}", {price}, {g.user["id"]}, "{categories}")', True)
         
         except:
             flash("Failed to create product")
@@ -254,16 +248,12 @@ def add_product():
 # TODO: Solve user_id = None crashing site
 @app.get('/manage_products/')
 def manage_products():
-    user_id = session.get('user_id')
-    try:
-        query = db_query(f'SELECT id FROM Retailer WHERE account = {user_id}')
-        r_id = query.fetchone()['id']
-    
-    except:
+    # Permission check
+    if g.user['role'] != "retailer":
         flash("No retailer account was found")
         return redirect(request.referrer)
 
-    query = db_query(f'SELECT * FROM Product WHERE retailerId = {r_id}')
+    query = db_query(f'SELECT * FROM Product WHERE retailerId = {g.user["id"]}')
     products = query.fetchall()
 
     for product in products:
