@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block header %}
+    <h1>{% block title %}Administer users{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+    {% for user in users %}
+        <form action="{{ url_for('administer_users') }}" method="post">
+            <input type="hidden" name="id" value="{{ user['id'] }}">
+            <input type="email" name="email" value="{{ user['email'] }}">
+            <select name="role">
+                <option value="{{ user['role'] }}">Current: {{ user['role'] }}</option>
+                <optgroup>
+                    <option>Customer</option>
+                    <option>Retailer</option>
+                    <option>Administrator</option>
+                </optgroup>
+            </select>
+            <button type="submit">Save</button>
+        </form>
+        <hr>
+    {% endfor %}
+{% endblock %}

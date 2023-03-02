@@ -1,3 +1,5 @@
+# TODO: Solve user_id = None crashing site
+
 from MySQLdb import IntegrityError
 from flask import Flask
 from flask_mysqldb import MySQL
@@ -156,7 +158,7 @@ def register():
 
             try:
                 # Add user to db
-                query = db_query(f'INSERT INTO User VALUES (NULL, "customer", "{email}", "{password}")', True)
+                query = db_query(f'INSERT INTO User VALUES (NULL, "Customer", "{email}", "{password}")', True)
             
                 # Login user to their new account
                 query = db_query(f'SELECT id FROM User WHERE email = "{email}"')
@@ -205,7 +207,28 @@ def logout():
     session.clear()    
     return redirect(url_for('index'))
 
-@app.route('/add_product/', methods =('GET', 'POST'))
+@app.route('/users/', methods=('GET', 'POST'))
+def administer_users():
+    if g.user['role'] != 'Administrator':
+        return redirect(url_for('index'))
+
+    if request.method == 'POST':
+        u_id = request.form['id']
+        email = request.form['email']
+        role = request.form['role']
+
+        try:
+            query = db_query(f'UPDATE User SET email = "{email}", role = "{role}" WHERE id = {u_id}', True)
+
+        except:
+            flash("Failed to update user")
+    
+    query = db_query(f'SELECT id, role, email FROM User')
+    users = query.fetchall()
+
+    return render_template('admin/users.html', users = users)
+
+@app.route('/add_product/', methods=('GET', 'POST'))
 def add_product():
     if request.method == 'POST':
         name = request.form['name']
@@ -215,7 +238,7 @@ def add_product():
         media = request.files.getlist('media')
 
         # Permission check
-        if g.user['role'] != "retailer":
+        if g.user['role'] != "Retailer":
             flash("Not a retailer")
             return render_template('retailer/add_product.html')
 
@@ -246,11 +269,10 @@ def add_product():
 
     return render_template('retailer/add_product.html')
 
-# TODO: Solve user_id = None crashing site
 @app.get('/manage_products/')
 def manage_products():
     # Permission check
-    if g.user['role'] != "retailer":
+    if g.user['role'] != "Retailer":
         flash("No retailer account was found")
         return redirect(request.referrer)
 
@@ -279,7 +301,7 @@ def update_product():
 
     return redirect(request.referrer)
 
-@app.route('/cart/', methods =('GET', 'POST'))
+@app.route('/cart/', methods=('GET', 'POST'))
 def view_cart():
     user_id = session.get('user_id')
     query = db_query(f'SELECT id, totalPrice FROM `Order` WHERE userId = {user_id} AND isFinished = 0')

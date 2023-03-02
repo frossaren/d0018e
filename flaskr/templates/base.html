@@ -4,9 +4,12 @@
 <nav>
   {% if g.user %}
     <span>Hello, {{ g.user['email'] }}!</span>
-    {% if g.user['role'] == "retailer" %}
+    {% if g.user['role'] == "Retailer" %}
       <a href="{{ url_for('add_product') }}">Add product</a>
       <a href="{{ url_for('manage_products') }}">Manage products</a>
+    {% endif %}
+    {% if g.user['role'] == "Administrator" %}
+      <a href="{{ url_for('administer_users') }}">Administer users</a>
     {% endif %}
       <a href="{{ url_for('view_cart') }}">Cart({{ g.user['cartQty'] }})</a>
     <a href="{{ url_for('logout') }}">Log Out</a>
