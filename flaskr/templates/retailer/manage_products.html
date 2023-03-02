@@ -20,6 +20,15 @@
                     <label for="category">Category</label>
                     <input type="text" name="category" id="category" value="{{ product['category'] }}">
                     <br />
+                    <label for="active">Active</label>
+                    {% if product['active'] == 1 %}
+                        <input type="checkbox" name="active" value="1" checked>
+                    {% else %}
+                        <input type="checkbox" name="active" value="1">
+                    {% endif %}
+                    <!-- Unchecked value -->
+                    <input type="hidden" name="active" value="0">
+                    <br />
                     <br />
                     <button type="submit" formaction="/update_product/">Save</button>
                     <!-- <button type="submit" formaction="/delete_product/">Delete</button> -->

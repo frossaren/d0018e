@@ -58,7 +58,7 @@ def update_order(order_id, product_id, qty, price = None):
         price = query.fetchone()["price"]
 
     # Search for matches against primary keys
-    query = db_query(f'SELECT numOrdered, price FROM CartItem WHERE orderId = {order_id} AND productId = {product_id} AND price = {price}')
+    query = db_query(f'SELECT numOrdered FROM CartItem WHERE orderId = {order_id} AND productId = {product_id} AND price = {price}')
     existing = query.fetchone()
 
     # If order row for product with current price doesn't exist create new, else update/remove row
@@ -211,6 +211,7 @@ def add_product():
         name = request.form['name']
         price = request.form['price']
         categories = request.form['category']
+        active = request.form['active']
         media = request.files.getlist('media')
 
         # Permission check
@@ -220,7 +221,7 @@ def add_product():
 
         # Create product
         try:
-            query = db_query(f'INSERT INTO Product VALUES (NULL, "{name}", {price}, {g.user["id"]}, "{categories}")', True)
+            query = db_query(f'INSERT INTO Product VALUES (NULL, "{name}", {price}, {g.user["id"]}, "{categories}", {active})', True)
         
         except:
             flash("Failed to create product")
@@ -267,26 +268,14 @@ def update_product():
     name = request.form['name']
     price = request.form['price']
     category = request.form['category']
+    active = request.form['active']
     #media = request.files.getlist('media') # Implement image upload/removal for future versions
 
     try:
-        db_query(f'UPDATE Product SET name = "{name}", price = {price}, category = "{category}" WHERE id = {product_id}', True)
+        db_query(f'UPDATE Product SET name="{name}", price={price}, category="{category}", active={active} WHERE id={product_id}', True)
 
     except:
         flash("Failed to update product")
-
-    return redirect(request.referrer)
-
-@app.post('/delete_product/')
-def delete_product():
-    product_id = request.form['id']
-    
-    try:
-        pass
-        # Disable product in someway, can't delete for order history purposes
-    
-    except:
-        flash("Failed to delete product")
 
     return redirect(request.referrer)
 
@@ -304,17 +293,30 @@ def view_cart():
         }
     
     else:
-        queryString = ("SELECT Product.id, Product.name, CartItem.price, CartItem.numOrdered "
+        queryString = ("SELECT Product.id, Product.name, Product.active, CartItem.price, CartItem.numOrdered "
                        "FROM CartItem "
                        "INNER JOIN Product ON CartItem.productId = Product.id "
                       f'WHERE CartItem.orderId = {order_info["id"]}')
         query = db_query(queryString)
         order_rows = query.fetchall()
 
+        active_rows = []
+        for row in order_rows:
+            if row['active'] == 0:
+                # Remove from order rows and fetch updated order price
+                update_order(order_info['id'], row['id'], row['numOrdered'] * -1, row['price'])
+                query = db_query(f'SELECT id, totalPrice FROM `Order` WHERE id={order_info["id"]}')
+                order_info = query.fetchone()
+                flash(f'Product {row["name"]} has been removed from cart because retailer has deactived the product')
+
+            else:
+                active_rows.append(row)
+
+
         cart = {
             'id': order_info['id'],
             'totalPrice': order_info['totalPrice'],
-            'rows': order_rows
+            'rows': active_rows
         }
 
     return render_template('cart/view_cart.html', cart = cart)
