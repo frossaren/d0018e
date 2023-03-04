@@ -301,6 +301,12 @@ def update_product():
 
     return redirect(request.referrer)
 
+@app.route('/details/<product>')
+def view_details(product):
+    user_id = session.get('user_id')
+    return render_template('details.html')
+
+
 @app.route('/cart/', methods=('GET', 'POST'))
 def view_cart():
     user_id = session.get('user_id')
