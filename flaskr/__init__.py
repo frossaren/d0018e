@@ -304,6 +304,7 @@ def update_product():
 @app.route('/details/<product>')
 def view_details(product):
     user_id = session.get('user_id')
+    mediaurls = get_media(product)
     return render_template('details.html')
 
 
